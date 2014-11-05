@@ -5,21 +5,95 @@ import subprocess
 import logging
 from coloredlogger import ColoredLogger
 import argparse
+import json
+import termios
+import fcntl
+import sys
 
+# from https://stackoverflow.com/questions/983354/how-do-i-make-python-to-wait-for-a-pressed-key
+def read_single_keypress():
+    """Waits for a single keypress on stdin.
+
+    This is a silly function to call if you need to do it a lot because it has
+    to store stdin's current setup, setup stdin for reading single keystrokes
+    then read the single keystroke then revert stdin back after reading the
+    keystroke.
+
+    Returns the character of the key that was pressed (zero on
+    KeyboardInterrupt which can happen when a signal gets handled)
+
+    """
+
+    fd = sys.stdin.fileno()
+    # save old state
+    flags_save = fcntl.fcntl(fd, fcntl.F_GETFL)
+    attrs_save = termios.tcgetattr(fd)
+    # make raw - the way to do this comes from the termios(3) man page.
+    attrs = list(attrs_save) # copy the stored version to update
+    # iflag
+    attrs[0] &= ~(termios.IGNBRK | termios.BRKINT | termios.PARMRK 
+                  | termios.ISTRIP | termios.INLCR | termios. IGNCR 
+                  | termios.ICRNL | termios.IXON )
+    # oflag
+    attrs[1] &= ~termios.OPOST
+    # cflag
+    attrs[2] &= ~(termios.CSIZE | termios. PARENB)
+    attrs[2] |= termios.CS8
+    # lflag
+    attrs[3] &= ~(termios.ECHONL | termios.ECHO | termios.ICANON
+                  | termios.ISIG | termios.IEXTEN)
+    termios.tcsetattr(fd, termios.TCSANOW, attrs)
+    # turn off non-blocking
+    fcntl.fcntl(fd, fcntl.F_SETFL, flags_save & ~os.O_NONBLOCK)
+    # read a single keystroke
+    try:
+        ret = sys.stdin.read(1) # returns a single character
+    except KeyboardInterrupt: 
+        ret = 0
+    finally:
+        # restore old state
+        termios.tcsetattr(fd, termios.TCSAFLUSH, attrs_save)
+        fcntl.fcntl(fd, fcntl.F_SETFL, flags_save)
+    return ret
 
 class VCWalker(object):
 
     auto_upgrade = False
 
-    def __init__(self, auto_update, auto_upgrade, ignore_added):
+    def __init__(self, auto_update, auto_upgrade, ignore_added, interactive_add_ignore, settingsfile, launch_shell):
         self.auto_upgrade = auto_upgrade
         self.auto_update = auto_update
         self.ignore_added = ignore_added
+        self.interactive_add_ignore = interactive_add_ignore
         self.logger = logging.getLogger("walker")
+        self.noaction_files = []
+        self.settingsfile = settingsfile
+        self.launch_shell = launch_shell
+        self.shell = os.environ.get("SHELL", "/bin/bash")
+
+        if self.settingsfile != None and os.path.exists(self.settingsfile):
+            input = json.loads(open(self.settingsfile).read())
+            self.skip_files = input['skip_files']
+            self.skip_repositories = input['skip_repositories']
+        else:
+            self.skip_files = []
+            self.skip_repositories = []
+
+    def shutdown(self):
+        if self.settingsfile == None:
+            return
+        output = {
+            'skip_files': self.skip_files,
+            'skip_repositories': self.skip_repositories
+        }      
+        open(self.settingsfile, 'w').write(json.dumps(output, indent=4, separators=(',', ': ')))
 
     def walkdir(self, rootdir):
         output = {}
         for dirpath, subdirs, files in os.walk(rootdir, topdown=True):
+            if dirpath in self.skip_repositories:
+                self.logger.info("Skipping %s" % dirpath)
+                continue
             if '.svn' in subdirs:
                 # if this is the root of a svn dir, don't visit any subdirs
                 subdirs[:] = []
@@ -41,8 +115,22 @@ class VCWalker(object):
             (status, files) = self._svn_get_status(path)
 
         if status == None:
-            self.logger.info(path)
-            self.logger.warning("Could not check this repository.")
+            self.logger.warning("Could not check this repository: %s" % path)
+            self.logger.error(files)
+            if self.interactive_add_ignore:
+                print "What to do now? [n]o action for now, always skip this [r]epository, [q]uit, use [s]hell to investigate/fix"
+                key = read_single_keypress()
+                if key == 'r':
+                    print "Will skip repository in future runs."
+                    self.skip_repositories.append(path)
+                elif key == 'q':
+                    self.shutdown()
+                    sys.exit("Good bye.")
+                elif key == 's':
+                    subprocess.call([self.shell], cwd=path)
+                    return self.checkvc(path, type, try_update)
+                else:
+                    print "No action."
             return
 
         output = False
@@ -82,12 +170,35 @@ class VCWalker(object):
             for f in files['added']:
                 self.logger.info("  - %s" % f)
 
+        if 'added' in status and self.interactive_add_ignore:
+            if type == 'git':
+                repeat = self._git_add_ignore(path, files['added'])
+                if repeat:
+                    return self.checkvc(path, type)
+
+        '''if 'modified' in status and self.interactive_add_ignore:
+            if type == 'git':
+                self._git_commit(path)
+            else:
+                self._svn_commit(path)'''
+
         if 'needs-pull' in status and try_update and self.auto_update:
             if type == 'git':
                 self._git_update(path)
             else:
                 self._svn_update(path)
                 return self.checkvc(path, type, False)
+
+        if ('added' in status or 'needs-pull' in status or 'modified' in status or 'needs-push' in status) and self.launch_shell:
+            print "Launch a shell to investigate/fix this? [y]es [n]o [q]uit"
+            key = read_single_keypress()
+            if key == 'y' or key == 'Y':
+                subprocess.call([self.shell], cwd=path)
+                return self.checkvc(path, type, try_update)
+            elif key == 'q':
+                self.shutdown()
+                sys.exit("Good bye.")
+                               
 
         return status
 
@@ -158,7 +269,96 @@ class VCWalker(object):
         except subprocess.CalledProcessError, e:
             self.logger.error(e.output)
         
-  
+    # return True to indicate that the repo should be re-read
+    def _git_add_ignore(self, path, files):
+        print "GIT Repository %s" % path
+        for f in files:
+            if f in self.noaction_files or f in self.skip_files:
+                continue
+            print "New file: %s" % f
+            print "  [a]dd to repo\n  add to git[i]gnore\n  add to [g]lobal gitignore\n  [n]o action\n  no action on [w]hole repostory\n  always s[k]ip this file\n  always skip this [r]epository\n  , use [s]hell to investigate/fix\n  [q]uit"
+            key = read_single_keypress()
+            if key == 'a':
+                print "Adding file to repository."
+                try: 
+                    subprocess.check_output(["git", "-C", path, "add", f], stderr=subprocess.STDOUT)
+                except subprocess.CalledProcessError, e:
+                    self.logger.error(e.output)
+            elif key == 'i':
+                proposal = self._git_prepare_ignore(path, f)
+                ignore = raw_input("What exactly to add to .gitignore? [%s] " % proposal).strip()
+                if ignore == "":
+                    ignore = proposal
+                self._git_add_to_ignore_file(path, ignore, False)
+                return True
+            elif key == 'g':
+                print "Note: Using/creating a global gitignore file at ~/.gitignore"
+                proposal = self._git_prepare_ignore(path, f)
+                ignore = raw_input("What exactly to add to global gitignore? [%s] " % proposal).strip()
+                if ignore == "":
+                    ignore = proposal
+                self._git_add_to_ignore_file(path, ignore, True)
+                return True
+            elif key == 'k':
+                self.skip_files.append(f)
+                print "Will skip file in future runs."
+            elif key == 'r':
+                self.skip_repositories.append(path)
+                print "Will skip repository in future runs."
+                return False
+            elif key == 's':
+                subprocess.call([self.shell], cwd=path)
+                return True
+            elif key == 'w':
+                print "Skipping repository."
+                return False
+            elif key == 'q':
+                self.shutdown()
+                sys.exit("Good bye.")
+            else:
+                print "Doing nothing..."
+                self.noaction_files.append(f)
+        return False
+        '''
+        print "Commit added files now? [Yn]"
+        key = read_single_keypress()
+        if key == 'y' or key == 'Y':
+            try: 
+                subprocess.check_output(["git", "-C", path, "commit"], stderr=subprocess.STDOUT)
+            except subprocess.CalledProcessError, e:
+                self.logger.error(e.output)
+        '''
+    
+    def _git_prepare_ignore(self, path, what):
+        if what.startswith(path):
+            what = what[len(path):]
+        if what.startswith("#"):
+            what = "\\%s" % what
+            print "(added backslash, it's a .gitignore rule for files that start with #)"
+        return what
+            
+    def _git_add_to_ignore_file(self, path, what, globally):
+        if globally:
+            ignorefile = os.path.expanduser("~/.gitignore")
+        else:
+            ignorefile = os.path.join(path, ".gitignore")
+
+        created = False
+        if os.path.exists(ignorefile):
+            gitignore = open(ignorefile, 'r').read()
+        else:
+            gitignore = "# Fresh git ignore file created by vcwalker. Feel free to change as needed."
+            created = True
+
+        gitignore = "%s\n%s" % (gitignore, what)
+        open(ignorefile, 'w').write(gitignore)
+        print "Added ignore file entry."
+        if globally:
+            try: 
+                subprocess.check_output(["git", "config", "--global", "core.excludesfile", ignorefile], stderr=subprocess.STDOUT)
+            except subprocess.CalledProcessError, e:
+                self.logger.error(e.output)
+
     def _svn_get_status(self, path):
         out_status = []
         out_files = {
@@ -236,19 +436,25 @@ if __name__ == "__main__":
     parser.add_argument('--verbose', '-v', dest="verbose", default=0, action="count", help="Output all messages about single repositories. Use twice for debug output.")
     parser.add_argument('--no-color', dest="no_color", action="store_true", help="Use no color in logging output.")
     parser.add_argument('--no-list', dest="list", action="store_false", help="Don't summarize the results.")
+    parser.add_argument('--interactive', '-i', dest="interactive", action="store_true", help="Ask for adding/ignoring new files.")
+    parser.add_argument('--shell', '-s', dest="shell", action="store_true", help="Launch a shell in every directory that has modified/added files (implies -v).")
+    parser.add_argument('--settings-file', '-f', dest="settingsfile", default="~/.config/vcwalker", help="An alternate settings file (default: ~/.config/vcwalker).")
     parser.add_argument('path', nargs="*", default=["."], help="Paths to search for repositories (Default: Working Directory).")
     args = parser.parse_args()
 
     if not args.no_color:
         logging.setLoggerClass(ColoredLogger)
 
+    if args.shell:
+        args.verbose = max(args.verbose, 1)
+
     logging.getLogger('walker').setLevel({
-        0: logging.FATAL,
+        0: logging.WARN,
         1: logging.INFO,
         2: logging.DEBUG
     }[args.verbose])
 
-    walker = VCWalker(args.auto_update, args.auto_upgrade, args.ignore_added)
+    walker = VCWalker(args.auto_update, args.auto_upgrade, args.ignore_added, args.interactive, os.path.expanduser(args.settingsfile), args.shell)
 
     result = {}
     for d in args.path:
