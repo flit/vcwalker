@@ -252,14 +252,17 @@ class VCWalker(object):
 
         for line in status.split("\n")[:-1]:
             self.logger.debug("Checking: >>%s<<" % line)
+            file = os.path.join(path, line[3:])
+            if file in self.noaction_files or file in self.skip_files:
+                continue
             if line[1] in 'MARCD':
                 if not 'modified' in out_status:
                     out_status.append("modified")
-                out_files['modified'].append(os.path.join(path, line[3:]))
+                out_files['modified'].append(file)
             if line[0:2] == '??' and not self.ignore_added:
                 if not 'added' in out_status:
                     out_status.append("added")
-                out_files['added'].append(os.path.join(path, line[3:]))
+                out_files['added'].append(file)
 
         return (out_status, out_files)
 
@@ -276,7 +279,7 @@ class VCWalker(object):
             if f in self.noaction_files or f in self.skip_files:
                 continue
             print "New file: %s" % f
-            print "  [a]dd to repo\n  add to git[i]gnore\n  add to [g]lobal gitignore\n  [n]o action\n  no action on [w]hole repostory\n  always s[k]ip this file\n  always skip this [r]epository\n  , use [s]hell to investigate/fix\n  [q]uit"
+            print "  [a]dd to repo\n  add to git[i]gnore\n  add to [g]lobal gitignore\n  [n]o action\n  no action on [w]hole repostory\n  always s[k]ip this file\n  always skip this [r]epository\n  use [s]hell to investigate/fix\n  [q]uit"
             key = read_single_keypress()
             if key == 'a':
                 print "Adding file to repository."
