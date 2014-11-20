@@ -176,12 +176,6 @@ class VCWalker(object):
                 if repeat:
                     return self.checkvc(path, type)
 
-        '''if 'modified' in status and self.interactive_add_ignore:
-            if type == 'git':
-                self._git_commit(path)
-            else:
-                self._svn_commit(path)'''
-
         if 'needs-pull' in status and try_update and self.auto_update:
             if type == 'git':
                 self._git_update(path)
@@ -322,15 +316,6 @@ class VCWalker(object):
                 print "Doing nothing..."
                 self.noaction_files.append(f)
         return False
-        '''
-        print "Commit added files now? [Yn]"
-        key = read_single_keypress()
-        if key == 'y' or key == 'Y':
-            try: 
-                subprocess.check_output(["git", "-C", path, "commit"], stderr=subprocess.STDOUT)
-            except subprocess.CalledProcessError, e:
-                self.logger.error(e.output)
-        '''
     
     def _git_prepare_ignore(self, path, what):
         if what.startswith(path):
@@ -465,3 +450,4 @@ if __name__ == "__main__":
 
     if args.list:
         walker.list(result)
+    walker.shutdown()
