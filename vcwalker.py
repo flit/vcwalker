@@ -127,10 +127,10 @@ class VCWalker(object):
             self.logger.warning("Could not check this repository: %s" % path)
             self.logger.error(files)
             if self.interactive_add_ignore:
-                print "What to do now? [n]o action for now, always skip this [r]epository, [q]uit, use [s]hell to investigate/fix"
+                print("What to do now? [n]o action for now, always skip this [r]epository, [q]uit, use [s]hell to investigate/fix")
                 key = read_single_keypress()
                 if key == 'r':
-                    print "Will skip repository in future runs."
+                    print("Will skip repository in future runs.")
                     self.skip_repositories.append(path)
                 elif key == 'q':
                     self.shutdown()
@@ -139,7 +139,7 @@ class VCWalker(object):
                     subprocess.call([self.shell], cwd=path)
                     return self.checkvc(path, type, try_update)
                 else:
-                    print "No action."
+                    print("No action.")
             return
 
         output = False
@@ -193,7 +193,7 @@ class VCWalker(object):
                 return self.checkvc(path, type, False)
 
         if ('added' in status or 'needs-pull' in status or 'modified' in status or 'needs-push' in status) and self.launch_shell:
-            print "Launch a shell to investigate/fix this? [y]es [n]o [q]uit"
+            print("Launch a shell to investigate/fix this? [y]es [n]o [q]uit")
             key = read_single_keypress()
             if key == 'y' or key == 'Y':
                 subprocess.call([self.shell], cwd=path)
@@ -214,26 +214,26 @@ class VCWalker(object):
 
         try:
             subprocess.check_output(["git", "-C", path, "remote", "update"], stderr=subprocess.STDOUT)
-        except subprocess.CalledProcessError, e:
+        except subprocess.CalledProcessError as e:
             self.logger.error(e.output)
             return (None, e.output)
 
         # Use the strategy described in https://stackoverflow.com/questions/3258243/git-check-if-pull-needed to check if a pull is needed
         try:
             local = subprocess.check_output(["git", "-C", path, "rev-parse", "@"], stderr=subprocess.STDOUT)
-        except subprocess.CalledProcessError, e:
+        except subprocess.CalledProcessError as e:
             self.logger.error(e.output)
             return (None, e.output)
 
         try:
             remote = subprocess.check_output(["git", "-C", path, "rev-parse", "@{u}"], stderr=subprocess.STDOUT)
-        except subprocess.CalledProcessError, e:
+        except subprocess.CalledProcessError as e:
             self.logger.error(e.output)
             return (None, e.output)
 
         try:
             base = subprocess.check_output(["git", "-C", path, "merge-base", "@", "@{u}"], stderr=subprocess.STDOUT)
-        except subprocess.CalledProcessError, e:
+        except subprocess.CalledProcessError as e:
             self.logger.error(e.output)
             return (None, e.output)
 
@@ -249,7 +249,7 @@ class VCWalker(object):
         # Now check for local modifications
         try:
             status = subprocess.check_output(["git", "-C", path, "status", "--porcelain"], stderr=subprocess.STDOUT)
-        except subprocess.CalledProcessError, e:
+        except subprocess.CalledProcessError as e:
             self.logger.error(e.output)
             return (None, e.output)
 
@@ -272,57 +272,57 @@ class VCWalker(object):
     def _git_update(self, path):
         try:
             subprocess.check_output(["git", "-C", path, "pull"], stderr=subprocess.STDOUT)
-        except subprocess.CalledProcessError, e:
+        except subprocess.CalledProcessError as e:
             self.logger.error(e.output)
 
     # return True to indicate that the repo should be re-read
     def _git_add_ignore(self, path, files):
-        print "GIT Repository %s" % path
+        print("GIT Repository %s" % path)
         for f in files:
             if f in self.noaction_files or f in self.skip_files:
                 continue
-            print "New file: %s" % f
-            print "  [a]dd to repo\n  add to git[i]gnore\n  add to [g]lobal gitignore\n  [n]o action\n  no action on [w]hole repostory\n  always s[k]ip this file\n  always skip this [r]epository\n  use [s]hell to investigate/fix\n  [q]uit"
+            print("New file: %s" % f)
+            print("  [a]dd to repo\n  add to git[i]gnore\n  add to [g]lobal gitignore\n  [n]o action\n  no action on [w]hole repostory\n  always s[k]ip this file\n  always skip this [r]epository\n  use [s]hell to investigate/fix\n  [q]uit")
             key = read_single_keypress()
             if key == 'a':
-                print "Adding file to repository."
+                print("Adding file to repository.")
                 try:
                     subprocess.check_output(["git", "-C", path, "add", f], stderr=subprocess.STDOUT)
-                except subprocess.CalledProcessError, e:
+                except subprocess.CalledProcessError as e:
                     self.logger.error(e.output)
             elif key == 'i':
                 proposal = self._git_prepare_ignore(path, f)
-                ignore = raw_input("What exactly to add to .gitignore? [%s] " % proposal).strip()
+                ignore = input("What exactly to add to .gitignore? [%s] " % proposal).strip()
                 if ignore == "":
                     ignore = proposal
                 self._git_add_to_ignore_file(path, ignore, False)
                 return True
             elif key == 'g':
-                print "Note: Using/creating a global gitignore file at ~/.gitignore"
+                print("Note: Using/creating a global gitignore file at ~/.gitignore")
                 proposal = self._git_prepare_ignore(path, f)
-                ignore = raw_input("What exactly to add to global gitignore? [%s] " % proposal).strip()
+                ignore = input("What exactly to add to global gitignore? [%s] " % proposal).strip()
                 if ignore == "":
                     ignore = proposal
                 self._git_add_to_ignore_file(path, ignore, True)
                 return True
             elif key == 'k':
                 self.skip_files.append(f)
-                print "Will skip file in future runs."
+                print("Will skip file in future runs.")
             elif key == 'r':
                 self.skip_repositories.append(path)
-                print "Will skip repository in future runs."
+                print("Will skip repository in future runs.")
                 return False
             elif key == 's':
                 subprocess.call([self.shell], cwd=path)
                 return True
             elif key == 'w':
-                print "Skipping repository."
+                print("Skipping repository.")
                 return False
             elif key == 'q':
                 self.shutdown()
                 sys.exit("Good bye.")
             else:
-                print "Doing nothing..."
+                print("Doing nothing...")
                 self.noaction_files.append(f)
         return False
 
@@ -331,7 +331,7 @@ class VCWalker(object):
             what = what[len(path):]
         if what.startswith("#"):
             what = "\\%s" % what
-            print "(added backslash, it's a .gitignore rule for files that start with #)"
+            print("(added backslash, it's a .gitignore rule for files that start with #)")
         return what
 
     def _git_add_to_ignore_file(self, path, what, globally):
@@ -349,11 +349,11 @@ class VCWalker(object):
 
         gitignore = "%s\n%s" % (gitignore, what)
         open(ignorefile, 'w').write(gitignore)
-        print "Added ignore file entry."
+        print("Added ignore file entry.")
         if globally:
             try:
                 subprocess.check_output(["git", "config", "--global", "core.excludesfile", ignorefile], stderr=subprocess.STDOUT)
-            except subprocess.CalledProcessError, e:
+            except subprocess.CalledProcessError as e:
                 self.logger.error(e.output)
 
     def _svn_get_status(self, path):
@@ -364,7 +364,7 @@ class VCWalker(object):
         }
         try:
             status = subprocess.check_output(["svn", "status", "-u", path], stderr=subprocess.STDOUT)
-        except subprocess.CalledProcessError, e:
+        except subprocess.CalledProcessError as e:
             if 'E155036' in e.output:
                 if self.auto_upgrade:
                     self.logger.warn("Upgrading SVN version.")
@@ -398,7 +398,7 @@ class VCWalker(object):
     def _svn_upgrade(self, path):
         try:
             status = subprocess.check_output(["svn", "upgrade", path], stderr=subprocess.STDOUT)
-        except subprocess.CalledProcessError, e:
+        except subprocess.CalledProcessError as e:
             logger.error(e.output)
             return False
         return True
@@ -406,12 +406,12 @@ class VCWalker(object):
     def _svn_update(self, path):
         try:
             status = subprocess.check_output(["svn", "update", path], stderr=subprocess.STDOUT)
-        except subprocess.CalledProcessError, e:
+        except subprocess.CalledProcessError as e:
             logger.error(e.output)
 
     def list(self, list):
-        print "# <-- remote changes; --> local changes; |--| diverged; M modified files; A added files; E error."
-        for path, result in list.items():
+        print("# <-- remote changes; --> local changes; |--| diverged; M modified files; A added files; E error.")
+        for path, result in list(list.items()):
             if result == []:
                 continue
             if result == None:
@@ -422,7 +422,7 @@ class VCWalker(object):
                 c = "A" if "added" in result else "-"
                 d = "|" if "diverged" in result else (">" if "needs-push" in result else " ")
 
-            print " %s%s%s%s  %s" % (a, b, c, d, path)
+            print(" %s%s%s%s  %s" % (a, b, c, d, path))
 
 if __name__ == "__main__":
 
