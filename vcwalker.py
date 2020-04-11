@@ -409,9 +409,9 @@ class VCWalker(object):
         except subprocess.CalledProcessError as e:
             logger.error(e.output)
 
-    def list(self, list):
+    def print_summary(self, result):
         print("# <-- remote changes; --> local changes; |--| diverged; M modified files; A added files; E error.")
-        for path, result in list(list.items()):
+        for path, result in list(result.items()):
             if result == []:
                 continue
             if result == None:
@@ -432,7 +432,7 @@ if __name__ == "__main__":
     parser.add_argument('--ignore-added', '-n', dest="ignore_added", action="store_true", help="Ignore files added in the local file system.")
     parser.add_argument('--verbose', '-v', dest="verbose", default=0, action="count", help="Output all messages about single repositories. Use twice for debug output.")
     parser.add_argument('--no-color', dest="no_color", action="store_true", help="Use no color in logging output.")
-    parser.add_argument('--no-list', dest="list", action="store_false", help="Don't summarize the results.")
+    parser.add_argument('--no-summary', dest="summary", action="store_false", help="Don't summarize the results.")
     parser.add_argument('--interactive', '-i', dest="interactive", action="store_true", help="Ask for adding/ignoring new files.")
     parser.add_argument('--depth', '-d', dest="depth", default=None, type=int, help="Maximum directory depth.")
     parser.add_argument('--shell', '-s', dest="shell", action="store_true", help="Launch a shell in every directory that has modified/added files (implies -v).")
@@ -458,6 +458,6 @@ if __name__ == "__main__":
     for d in args.path:
         result.update(walker.walkdir(d))
 
-    if args.list:
-        walker.list(result)
+    if args.summary:
+        walker.print_summary(result)
     walker.shutdown()
