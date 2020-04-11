@@ -60,7 +60,7 @@ class VCWalker(object):
 
     auto_upgrade = False
 
-    def __init__(self, auto_update, auto_upgrade, ignore_added, interactive_add_ignore, settingsfile, launch_shell):
+    def __init__(self, auto_update, auto_upgrade, ignore_added, interactive_add_ignore, settingsfile, launch_shell, depth):
         self.auto_upgrade = auto_upgrade
         self.auto_update = auto_update
         self.ignore_added = ignore_added
@@ -70,6 +70,7 @@ class VCWalker(object):
         self.settingsfile = settingsfile
         self.launch_shell = launch_shell
         self.shell = os.environ.get("SHELL", "/bin/bash")
+        self.depth = depth
 
         if self.settingsfile != None and os.path.exists(self.settingsfile):
             input = json.loads(open(self.settingsfile).read())
@@ -89,8 +90,10 @@ class VCWalker(object):
         open(self.settingsfile, 'w').write(json.dumps(output, indent=4, separators=(',', ': ')))
 
     def walkdir(self, rootdir):
+        absroot = os.path.abspath(rootdir)
+        absrootlen = len(absroot)
         output = {}
-        for dirpath, subdirs, files in os.walk(rootdir, topdown=True):
+        for dirpath, subdirs, files in os.walk(absroot, topdown=True):
             if dirpath in self.skip_repositories:
                 self.logger.info("Skipping %s" % dirpath)
                 continue
@@ -103,6 +106,12 @@ class VCWalker(object):
                 # note that this will cause repos to be ignored if they are sub-repos of git repos
                 subdirs[:] = []
                 output[dirpath] = self.checkvc(dirpath, 'git')
+
+            if self.depth is not None:
+                # Strip off the root directory to get depth of the current subdirectory.
+                dir_depth = len(dirpath[absrootlen:].split(os.sep))
+                if dir_depth > self.depth:
+                    subdirs[:] = []
 
             # we are not interested in hidden directories.
             subdirs[:] = [x for x in subdirs if not x.startswith('.')]
@@ -425,6 +434,7 @@ if __name__ == "__main__":
     parser.add_argument('--no-color', dest="no_color", action="store_true", help="Use no color in logging output.")
     parser.add_argument('--no-list', dest="list", action="store_false", help="Don't summarize the results.")
     parser.add_argument('--interactive', '-i', dest="interactive", action="store_true", help="Ask for adding/ignoring new files.")
+    parser.add_argument('--depth', '-d', dest="depth", default=None, type=int, help="Maximum directory depth.")
     parser.add_argument('--shell', '-s', dest="shell", action="store_true", help="Launch a shell in every directory that has modified/added files (implies -v).")
     parser.add_argument('--settings-file', '-f', dest="settingsfile", default="~/.config/vcwalker", help="An alternate settings file (default: ~/.config/vcwalker).")
     parser.add_argument('path', nargs="*", default=["."], help="Paths to search for repositories (Default: Working Directory).")
@@ -442,7 +452,7 @@ if __name__ == "__main__":
         2: logging.DEBUG
     }[args.verbose])
 
-    walker = VCWalker(args.auto_update, args.auto_upgrade, args.ignore_added, args.interactive, os.path.expanduser(args.settingsfile), args.shell)
+    walker = VCWalker(args.auto_update, args.auto_upgrade, args.ignore_added, args.interactive, os.path.expanduser(args.settingsfile), args.shell, args.depth)
 
     result = {}
     for d in args.path:
