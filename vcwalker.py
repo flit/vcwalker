@@ -31,8 +31,8 @@ def read_single_keypress():
     # make raw - the way to do this comes from the termios(3) man page.
     attrs = list(attrs_save) # copy the stored version to update
     # iflag
-    attrs[0] &= ~(termios.IGNBRK | termios.BRKINT | termios.PARMRK 
-                  | termios.ISTRIP | termios.INLCR | termios. IGNCR 
+    attrs[0] &= ~(termios.IGNBRK | termios.BRKINT | termios.PARMRK
+                  | termios.ISTRIP | termios.INLCR | termios. IGNCR
                   | termios.ICRNL | termios.IXON )
     # oflag
     attrs[1] &= ~termios.OPOST
@@ -48,7 +48,7 @@ def read_single_keypress():
     # read a single keystroke
     try:
         ret = sys.stdin.read(1) # returns a single character
-    except KeyboardInterrupt: 
+    except KeyboardInterrupt:
         ret = 0
     finally:
         # restore old state
@@ -85,7 +85,7 @@ class VCWalker(object):
         output = {
             'skip_files': self.skip_files,
             'skip_repositories': self.skip_repositories
-        }      
+        }
         open(self.settingsfile, 'w').write(json.dumps(output, indent=4, separators=(',', ': ')))
 
     def walkdir(self, rootdir):
@@ -192,7 +192,7 @@ class VCWalker(object):
             elif key == 'q':
                 self.shutdown()
                 sys.exit("Good bye.")
-                               
+
 
         return status
 
@@ -203,26 +203,26 @@ class VCWalker(object):
             'added': []
         }
 
-        try: 
+        try:
             subprocess.check_output(["git", "-C", path, "remote", "update"], stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError, e:
             self.logger.error(e.output)
             return (None, e.output)
 
         # Use the strategy described in https://stackoverflow.com/questions/3258243/git-check-if-pull-needed to check if a pull is needed
-        try: 
+        try:
             local = subprocess.check_output(["git", "-C", path, "rev-parse", "@"], stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError, e:
             self.logger.error(e.output)
             return (None, e.output)
-        
-        try: 
+
+        try:
             remote = subprocess.check_output(["git", "-C", path, "rev-parse", "@{u}"], stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError, e:
             self.logger.error(e.output)
             return (None, e.output)
-        
-        try: 
+
+        try:
             base = subprocess.check_output(["git", "-C", path, "merge-base", "@", "@{u}"], stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError, e:
             self.logger.error(e.output)
@@ -236,9 +236,9 @@ class VCWalker(object):
             out_status.append("needs-push")
         else:
             out_status.append("diverged")
-          
+
         # Now check for local modifications
-        try: 
+        try:
             status = subprocess.check_output(["git", "-C", path, "status", "--porcelain"], stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError, e:
             self.logger.error(e.output)
@@ -261,11 +261,11 @@ class VCWalker(object):
         return (out_status, out_files)
 
     def _git_update(self, path):
-        try: 
+        try:
             subprocess.check_output(["git", "-C", path, "pull"], stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError, e:
             self.logger.error(e.output)
-        
+
     # return True to indicate that the repo should be re-read
     def _git_add_ignore(self, path, files):
         print "GIT Repository %s" % path
@@ -277,7 +277,7 @@ class VCWalker(object):
             key = read_single_keypress()
             if key == 'a':
                 print "Adding file to repository."
-                try: 
+                try:
                     subprocess.check_output(["git", "-C", path, "add", f], stderr=subprocess.STDOUT)
                 except subprocess.CalledProcessError, e:
                     self.logger.error(e.output)
@@ -316,7 +316,7 @@ class VCWalker(object):
                 print "Doing nothing..."
                 self.noaction_files.append(f)
         return False
-    
+
     def _git_prepare_ignore(self, path, what):
         if what.startswith(path):
             what = what[len(path):]
@@ -324,7 +324,7 @@ class VCWalker(object):
             what = "\\%s" % what
             print "(added backslash, it's a .gitignore rule for files that start with #)"
         return what
-            
+
     def _git_add_to_ignore_file(self, path, what, globally):
         if globally:
             ignorefile = os.path.expanduser("~/.gitignore")
@@ -342,7 +342,7 @@ class VCWalker(object):
         open(ignorefile, 'w').write(gitignore)
         print "Added ignore file entry."
         if globally:
-            try: 
+            try:
                 subprocess.check_output(["git", "config", "--global", "core.excludesfile", ignorefile], stderr=subprocess.STDOUT)
             except subprocess.CalledProcessError, e:
                 self.logger.error(e.output)
@@ -353,7 +353,7 @@ class VCWalker(object):
             'modified': [],
             'added': []
         }
-        try: 
+        try:
             status = subprocess.check_output(["svn", "status", "-u", path], stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError, e:
             if 'E155036' in e.output:
@@ -387,7 +387,7 @@ class VCWalker(object):
         return (out_status, out_files)
 
     def _svn_upgrade(self, path):
-        try: 
+        try:
             status = subprocess.check_output(["svn", "upgrade", path], stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError, e:
             logger.error(e.output)
@@ -395,11 +395,11 @@ class VCWalker(object):
         return True
 
     def _svn_update(self, path):
-        try: 
+        try:
             status = subprocess.check_output(["svn", "update", path], stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError, e:
             logger.error(e.output)
- 
+
     def list(self, list):
         print "# <-- remote changes; --> local changes; |--| diverged; M modified files; A added files; E error."
         for path, result in list.items():
