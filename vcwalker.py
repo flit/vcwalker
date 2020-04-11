@@ -452,6 +452,10 @@ if __name__ == "__main__":
         2: logging.DEBUG
     }[args.verbose])
 
+    if args.depth is not None and args.depth < 0:
+        print("Error: depth cannot be negative")
+        exit(1)
+
     walker = VCWalker(args.auto_update, args.auto_upgrade, args.ignore_added, args.interactive, os.path.expanduser(args.settingsfile), args.shell, args.depth)
 
     result = {}
