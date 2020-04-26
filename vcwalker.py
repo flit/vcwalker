@@ -213,26 +213,26 @@ class VCWalker(object):
         }
 
         try:
-            subprocess.check_output(["git", "-C", path, "remote", "update"], stderr=subprocess.STDOUT)
+            subprocess.check_output(["git", "-C", path, "remote", "update"], stderr=subprocess.STDOUT, text=True)
         except subprocess.CalledProcessError as e:
             self.logger.error(e.output)
             return (None, e.output)
 
         # Use the strategy described in https://stackoverflow.com/questions/3258243/git-check-if-pull-needed to check if a pull is needed
         try:
-            local = subprocess.check_output(["git", "-C", path, "rev-parse", "@"], stderr=subprocess.STDOUT)
+            local = subprocess.check_output(["git", "-C", path, "rev-parse", "@"], stderr=subprocess.STDOUT, text=True)
         except subprocess.CalledProcessError as e:
             self.logger.error(e.output)
             return (None, e.output)
 
         try:
-            remote = subprocess.check_output(["git", "-C", path, "rev-parse", "@{u}"], stderr=subprocess.STDOUT)
+            remote = subprocess.check_output(["git", "-C", path, "rev-parse", "@{u}"], stderr=subprocess.STDOUT, text=True)
         except subprocess.CalledProcessError as e:
             self.logger.error(e.output)
             return (None, e.output)
 
         try:
-            base = subprocess.check_output(["git", "-C", path, "merge-base", "@", "@{u}"], stderr=subprocess.STDOUT)
+            base = subprocess.check_output(["git", "-C", path, "merge-base", "@", "@{u}"], stderr=subprocess.STDOUT, text=True)
         except subprocess.CalledProcessError as e:
             self.logger.error(e.output)
             return (None, e.output)
@@ -248,7 +248,7 @@ class VCWalker(object):
 
         # Now check for local modifications
         try:
-            status = subprocess.check_output(["git", "-C", path, "status", "--porcelain"], stderr=subprocess.STDOUT)
+            status = subprocess.check_output(["git", "-C", path, "status", "--porcelain"], stderr=subprocess.STDOUT, text=True)
         except subprocess.CalledProcessError as e:
             self.logger.error(e.output)
             return (None, e.output)
@@ -271,7 +271,7 @@ class VCWalker(object):
 
     def _git_update(self, path):
         try:
-            subprocess.check_output(["git", "-C", path, "pull"], stderr=subprocess.STDOUT)
+            subprocess.check_output(["git", "-C", path, "pull"], stderr=subprocess.STDOUT, text=True)
         except subprocess.CalledProcessError as e:
             self.logger.error(e.output)
 
@@ -287,7 +287,7 @@ class VCWalker(object):
             if key == 'a':
                 print("Adding file to repository.")
                 try:
-                    subprocess.check_output(["git", "-C", path, "add", f], stderr=subprocess.STDOUT)
+                    subprocess.check_output(["git", "-C", path, "add", f], stderr=subprocess.STDOUT, text=True)
                 except subprocess.CalledProcessError as e:
                     self.logger.error(e.output)
             elif key == 'i':
@@ -352,7 +352,7 @@ class VCWalker(object):
         print("Added ignore file entry.")
         if globally:
             try:
-                subprocess.check_output(["git", "config", "--global", "core.excludesfile", ignorefile], stderr=subprocess.STDOUT)
+                subprocess.check_output(["git", "config", "--global", "core.excludesfile", ignorefile], stderr=subprocess.STDOUT, text=True)
             except subprocess.CalledProcessError as e:
                 self.logger.error(e.output)
 
@@ -363,7 +363,7 @@ class VCWalker(object):
             'added': []
         }
         try:
-            status = subprocess.check_output(["svn", "status", "-u", path], stderr=subprocess.STDOUT)
+            status = subprocess.check_output(["svn", "status", "-u", path], stderr=subprocess.STDOUT, text=True)
         except subprocess.CalledProcessError as e:
             if 'E155036' in e.output:
                 if self.auto_upgrade:
@@ -397,7 +397,7 @@ class VCWalker(object):
 
     def _svn_upgrade(self, path):
         try:
-            status = subprocess.check_output(["svn", "upgrade", path], stderr=subprocess.STDOUT)
+            status = subprocess.check_output(["svn", "upgrade", path], stderr=subprocess.STDOUT, text=True)
         except subprocess.CalledProcessError as e:
             logger.error(e.output)
             return False
@@ -405,7 +405,7 @@ class VCWalker(object):
 
     def _svn_update(self, path):
         try:
-            status = subprocess.check_output(["svn", "update", path], stderr=subprocess.STDOUT)
+            status = subprocess.check_output(["svn", "update", path], stderr=subprocess.STDOUT, text=True)
         except subprocess.CalledProcessError as e:
             logger.error(e.output)
 
