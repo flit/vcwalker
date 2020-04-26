@@ -118,6 +118,7 @@ class VCWalker(object):
         return output
 
     def checkvc(self, path, type, try_update = True):
+        self.logger.info("Checking repository: %s", path)
         if type == 'git':
             (status, files) = self._git_get_status(path)
         else:
@@ -186,6 +187,7 @@ class VCWalker(object):
                     return self.checkvc(path, type)
 
         if 'needs-pull' in status and try_update and self.auto_update:
+            self.logger.info("Updating repository: %s", path)
             if type == 'git':
                 self._git_update(path)
             else:
